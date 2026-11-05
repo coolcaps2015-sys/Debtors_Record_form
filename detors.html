@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Party Master Entry</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c232c; --line:#2a323d;
+    --text:#e6edf3; --muted:#8b949e; --accent:#4f9cf9; --accent2:#3a7bd5;
+    --ok:#3fb950; --warn:#e3b341; --danger:#f0605d;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 20px 70px}
+
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:24px}
+  h1{font-size:24px;margin:0;font-weight:650;letter-spacing:.2px}
+  h1 span{color:var(--accent)}
+  .sub{margin:2px 0 0;color:var(--muted);font-size:13px}
+  .head-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .pill{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+  .pill.on{color:var(--ok);border-color:rgba(63,185,80,.4)}
+  .pill.off{color:var(--warn);border-color:rgba(227,179,65,.4)}
+
+  button{border:0;border-radius:8px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer;transition:background .15s,transform .05s,opacity .15s}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.6;cursor:default}
+  .primary{background:var(--accent2);color:#fff}.primary:hover:not(:disabled){background:var(--accent)}
+  .ghost{background:transparent;color:var(--text);border:1px solid var(--line)}.ghost:hover{background:var(--panel2)}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .stat .n{font-size:30px;font-weight:700;line-height:1.1}
+  .stat .l{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-top:4px}
+  .stat.reg .n{color:var(--ok)} .stat.unreg .n{color:var(--warn)} .stat.today .n{color:var(--accent)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .chip{font-size:12.5px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px 11px;color:var(--muted)}
+  .chip b{color:var(--text);margin-left:4px}
+  .chip.new{border-color:rgba(227,179,65,.5);color:var(--warn)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:20px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 16px;font-weight:600}
+
+  .latest{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+  .latest .t{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .latest .v{font-size:16px;font-weight:600;margin-top:2px}
+  .latest .d{font-size:13px;color:var(--muted)}
+  .latest.fresh{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 24px rgba(79,156,249,.18);background:linear-gradient(90deg,rgba(79,156,249,.10),var(--panel) 60%)}
+  .badge-new{background:var(--accent);color:#04121f;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;letter-spacing:.6px;margin-left:8px;vertical-align:middle}
+
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(227,179,65,.08);border:1px solid rgba(227,179,65,.35);color:var(--warn);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:14px}
+
+  .auto{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}
+  .auto div{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;color:var(--muted)}
+  .auto b{color:var(--text);font-weight:600;margin-left:6px}
+  #regBadge.register b{color:var(--ok)} #regBadge.unreg b{color:var(--warn)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .span2{grid-column:span 2}.full{grid-column:1/-1}
+  @media(max-width:560px){.span2{grid-column:1/-1}}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  label i{color:var(--danger);font-style:normal;margin-left:2px}
+  input,select,textarea{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;outline:none;transition:border .15s,box-shadow .15s}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,156,249,.15)}
+  select{color-scheme:dark}
+  textarea{resize:vertical;min-height:70px}
+  .newwrap{margin-top:8px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .errs{margin:14px 0 0;padding:10px 14px;border-radius:8px;background:rgba(240,96,93,.1);border:1px solid rgba(240,96,93,.4);color:#ffb4b2;font-size:14px}
+  .errs ul{margin:0;padding-left:18px}
+
+  .review p{margin:0 0 10px}
+  .review .skipped{font-size:13px;color:var(--muted);margin:0 0 14px;padding-left:18px}
+  .review .skipped li{margin:2px 0}
+
+  .toast{position:fixed;bottom:22px;right:22px;background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:8px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:320px;z-index:9}
+  .toast.show{opacity:1;transform:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Party <span>Master</span> Entry</h1>
+      <p class="sub">Add new parties — entries go straight to the main sheet</p>
+    </div>
+    <div class="head-actions">
+      <span class="pill" id="conn"></span>
+      <button class="ghost" id="tplBtn">Download blank Excel</button>
+      <button class="primary" id="importBtn">Import Excel</button>
+      <input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden>
+    </div>
+  </header>
+
+  <!-- Overview -->
+  <section class="stats" id="stats"></section>
+  <div class="chips" id="groupChips"></div>
+
+  <div class="bar" id="pendingBar" hidden>
+    <span id="pendingTxt"></span>
+    <button class="ghost" id="retryBtn">Retry now</button>
+  </div>
+
+  <div class="card latest" id="latest" hidden></div>
+
+  <!-- Import review -->
+  <div class="card review" id="review" hidden></div>
+
+  <!-- Form -->
+  <div class="card">
+    <h2>New Party</h2>
+    <div class="auto">
+      <div>Sr. No.<b>Auto</b></div>
+      <div>Date<b id="cDate">—</b></div>
+      <div>Time<b id="cTime">—</b></div>
+      <div id="regBadge" class="unreg">Status<b id="cReg">Un-register</b></div>
+    </div>
+
+    <form id="form" novalidate>
+      <div class="grid">
+        <div class="span2">
+          <label for="partyName">Party Name<i>*</i></label>
+          <input id="partyName" type="text" autocomplete="off" required>
+        </div>
+
+        <div>
+          <label for="group">Group<i>*</i></label>
+          <select id="group" required></select>
+          <div class="newwrap" id="groupNewWrap" hidden>
+            <input id="groupNew" type="text" placeholder="Enter new group name">
+          </div>
+        </div>
+
+        <div>
+          <label for="subGroup">Sub-Group<i>*</i></label>
+          <select id="subGroup" required></select>
+          <div class="newwrap" id="subNewWrap" hidden>
+            <input id="subNew" type="text" placeholder="Enter new sub-group name">
+          </div>
+        </div>
+
+        <div>
+          <label for="creditPeriod">Credit Period (days)</label>
+          <input id="creditPeriod" type="number" min="0" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label for="creditLimit">Credit Limit</label>
+          <input id="creditLimit" type="number" min="0" step="any" inputmode="decimal">
+        </div>
+
+        <div class="full">
+          <label for="address">Address</label>
+          <textarea id="address"></textarea>
+        </div>
+
+        <div>
+          <label for="state">State</label>
+          <input id="state" type="text" list="stateList" autocomplete="off">
+          <datalist id="stateList"></datalist>
+        </div>
+        <div>
+          <label for="country">Country</label>
+          <input id="country" type="text" list="countryList" value="India" autocomplete="off">
+          <datalist id="countryList"></datalist>
+        </div>
+
+        <div>
+          <label for="mainContact">Main Contact No</label>
+          <input id="mainContact" type="tel" inputmode="tel">
+        </div>
+        <div>
+          <label for="altContact">Alt Contact No</label>
+          <input id="altContact" type="tel" inputmode="tel">
+        </div>
+        <div>
+          <label for="mailId">Mail-ID</label>
+          <input id="mailId" type="email" autocomplete="off">
+        </div>
+
+        <div>
+          <label for="pan">PAN No</label>
+          <input id="pan" type="text" maxlength="10" placeholder="ABCDE1234F" style="text-transform:uppercase" autocomplete="off">
+        </div>
+        <div>
+          <label for="gstin">GSTIN No</label>
+          <input id="gstin" type="text" maxlength="15" placeholder="22ABCDE1234F1Z5" style="text-transform:uppercase" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="errs" id="formErr" hidden></div>
+
+      <div class="actions">
+        <button type="submit" class="primary" id="submitBtn">Add Entry</button>
+        <button type="reset" class="ghost">Clear</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   CONFIG
+   WEBHOOK_URL : Power Automate "When an HTTP request is received" URL.
+                 The flow adds each row to the main Excel table, so the
+                 main sheet is never exposed to the people using this page.
+   SUMMARY_URL : (optional) URL returning
+                 {total, registered, unregistered, today, groups:{name:count}}
+                 so the overview shows the whole sheet. If empty, the
+                 overview counts entries made from this browser.
+
+   Payload POSTed (text/plain JSON):
+   { rows:[ { addDate, addTime, partyName, group, subGroup, creditPeriod,
+              creditLimit, address, state, country, mainContact, altContact,
+              mailId, pan, gstin, regStatus } ] }
+   Sr. No. is NOT sent — make it a calculated column in the Excel table.
+   ===================================================================== */
+const CONFIG = {
+  WEBHOOK_URL: "https://script.google.com/macros/s/AKfycbwuaoRgvdQaVmh7prcQkWRjfq_AQPylzEV-yy8ZqndOy0FN7F3mT-BXb3TQpkFy2gTSqA/exec",
+  SUMMARY_URL: "https://script.google.com/macros/s/AKfycbwuaoRgvdQaVmh7prcQkWRjfq_AQPylzEV-yy8ZqndOy0FN7F3mT-BXb3TQpkFy2gTSqA/exec"
+};
+
+const GROUPS = [
+  "SD- AC/ Sandeep Kapoor","SD- AC/ Chittaranjan Senapati","SD- AC/ Ankit Ladsaria","Sundry Debtors - CS",
+  "Sundry Debtors -Merchant Export","Sundry Debtors  -Bisleri","SD- AC/ Jityendra Kumar","Sundry Debtors - Bhutan Exports",
+  "Disputed Trade Receivables Considered Good","SD- AC/ Ankit Ji","SD- AC/ Dheeraj Farmania","SD- AC/ Akash Maykar",
+  "SD- AC/ Jityendra Kumar-Non Core","Sundry Debotrs- IRCTC","Sundry Debtors  -Parle","Sundry Debtors -Nepal Exports",
+  "Sundry Debtors - General","Sundry Debotrs- Kingfisher","Sundry Debtors -Patanjali","SD- AC/ Manoj Jha",
+  "SD- AC/ Amit Agarwal/Vintech","Sundry Debtors  -Reliance","SD- AC/ Nikhil Jalan","SD- AC/ Sameer Verma",
+  "SD- AC/ Nikit Ji","SD- AC/ Samiran Dutta","SD- AC/ Ankit Gupta","SD- AC/ Vishal Goenka",
+  "Sundry Debtors - Srilanka Exports","Branch / Divisions","SD- AC/ Prashant Duggar","SD-AC/ Kishor Rai",
+  "Other Income","Indirect Expenses","Loan To Subsidiary Company","SD- AC/ Amit Rajgaria","SD- AC/ Esha Sharma",
+  "Sundry Debtors  -Emami","Sundry Debtors-Non Core","Pepsi, Co Packers, Franchise - North",
+  "Sundry Debtors - Legal","Sundry Debtors - Tata"
+];
+const SUBGROUPS = [
+  "Sales Person Wise","Exports","Corporate","Sundry Debtors - Legal","Sundry Debtors -Non Core","Sundry Debtors Domestic","Other"
+];
+const STATES = ["Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli and Daman and Diu","Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry"];
+const COUNTRIES = ["India","Bhutan","Nepal","Sri Lanka","Bangladesh"];
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const LS = { log:"pm_log_v1", pending:"pm_pending_v1", custom:"pm_custom_v1", last:"pm_last_v1" };
+const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } };
+const store = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+const toast = m => { const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("show"),2600); };
+
+function nowIST(){
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+  return { date:`${p.day}-${p.month}-${p.year}`, time:`${p.hour==="24"?"00":p.hour}:${p.minute}:${p.second}` };
+}
+const regOf = (pan,gst) => (pan || gst) ? "Register" : "Un-register";
+
+let custom = load(LS.custom, { groups:[], subGroups:[] });
+
+/* ---------- selects ---------- */
+function fillSelect(id, base, extra){
+  const sel = $(id), cur = sel.value;
+  sel.innerHTML = '<option value="">Select…</option>'
+    + base.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join("")
+    + extra.map(o => `<option value="${esc(o)}">★ ${esc(o)} (new)</option>`).join("")
+    + '<option value="__new__">+ Add new…</option>';
+  sel.value = cur;
+}
+function refreshSelects(){ fillSelect("#group", GROUPS, custom.groups); fillSelect("#subGroup", SUBGROUPS, custom.subGroups); }
+function bindNew(selId, wrapId, inpId){
+  $(selId).addEventListener("change", () => {
+    const on = $(selId).value === "__new__";
+    $(wrapId).hidden = !on; $(inpId).required = on;
+    if (on) $(inpId).focus();
+  });
+}
+const canon = (name, list) => list.find(x => x.toLowerCase() === name.toLowerCase()) || name;
+const pick = (selId, inpId, list) => {
+  const v = $(selId).value;
+  return v === "__new__" ? canon($(inpId).value.trim(), list) : v;
+};
+
+$("#stateList").innerHTML = STATES.map(s => `<option value="${esc(s)}">`).join("");
+$("#countryList").innerHTML = COUNTRIES.map(s => `<option value="${esc(s)}">`).join("");
+refreshSelects();
+bindNew("#group","#groupNewWrap","#groupNew");
+bindNew("#subGroup","#subNewWrap","#subNew");
+
+/* ---------- live strip ---------- */
+function tick(){ const t = nowIST(); $("#cDate").textContent = t.date; $("#cTime").textContent = t.time; }
+function updReg(){
+  const r = regOf($("#pan").value.trim(), $("#gstin").value.trim());
+  $("#cReg").textContent = r;
+  $("#regBadge").className = r === "Register" ? "register" : "unreg";
+}
+setInterval(tick, 1000); tick();
+$("#pan").addEventListener("input", updReg);
+$("#gstin").addEventListener("input", updReg);
+
+/* ---------- validation ---------- */
+const RX = {
+  pan:/^[A-Z]{5}[0-9]{4}[A-Z]$/,
+  gstin:/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/,
+  mail:/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  phone:/^[0-9+\-\s()]{7,18}$/
+};
+function validate(r){
+  const e = [];
+  if (!r.partyName) e.push("Party Name is required");
+  if (!r.group) e.push("Group is required");
+  if (!r.subGroup) e.push("Sub-Group is required");
+  if (r.pan && !RX.pan.test(r.pan)) e.push("PAN format is invalid (e.g. ABCDE1234F)");
+  if (r.gstin && !RX.gstin.test(r.gstin)) e.push("GSTIN format is invalid (15 characters)");
+  if (r.mailId && !RX.mail.test(r.mailId)) e.push("Mail-ID is invalid");
+  if (r.mainContact && !RX.phone.test(r.mainContact)) e.push("Main Contact No is invalid");
+  if (r.altContact && !RX.phone.test(r.altContact)) e.push("Alt Contact No is invalid");
+  if (r.creditPeriod !== "" && !(Number(r.creditPeriod) >= 0)) e.push("Credit Period must be a number");
+  if (r.creditLimit !== "" && !(Number(r.creditLimit) >= 0)) e.push("Credit Limit must be a number");
+  return e;
+}
+function buildRow(r, stamp){
+  const t = stamp || nowIST();
+  return { addDate:t.date, addTime:t.time, ...r, regStatus:regOf(r.pan, r.gstin) };
+}
+
+/* ---------- sending / logging ---------- */
+async function send(rows){
+  if (!CONFIG.WEBHOOK_URL) return { ok:true, local:true };
+  try {
+    const res = await fetch(CONFIG.WEBHOOK_URL, { method:"POST", headers:{ "Content-Type":"text/plain" }, body:JSON.stringify({ rows }) });
+    if (!res.ok) return { ok:false };
+    const t = await res.text();
+    if (!t) return { ok:true };
+    try { return { ok: JSON.parse(t).ok !== false }; } catch(e){ return { ok:false }; }
+  } catch(e){ return { ok:false }; }
+}
+function record(rows, kind){
+  const log = load(LS.log, []);
+  let newG = null, newS = null;
+  rows.forEach(r => {
+    log.push({ g:r.group, r:r.regStatus, d:r.addDate });
+    if (!GROUPS.includes(r.group) && !custom.groups.includes(r.group)) { custom.groups.push(r.group); newG = r.group; }
+    if (!SUBGROUPS.includes(r.subGroup) && !custom.subGroups.includes(r.subGroup)) { custom.subGroups.push(r.subGroup); newS = r.subGroup; }
+  });
+  store(LS.log, log); store(LS.custom, custom); refreshSelects();
+  const t = nowIST(), f = rows[0];
+  store(LS.last, { kind, count:rows.length, p:f.partyName, g:f.group, s:f.subGroup, r:f.regStatus, when:`${t.date} ${t.time}`, ts:Date.now(), newG, newS });
+}
+function queuePending(rows){ store(LS.pending, [...load(LS.pending, []), ...rows]); }
+
+/* ---------- overview ---------- */
+function localSummary(){
+  const log = load(LS.log, []), today = nowIST().date, groups = {};
+  log.forEach(x => groups[x.g] = (groups[x.g] || 0) + 1);
+  return {
+    total:log.length,
+    registered:log.filter(x => x.r === "Register").length,
+    unregistered:log.filter(x => x.r !== "Register").length,
+    today:log.filter(x => x.d === today).length,
+    groups
+  };
+}
+function renderOverview(s){
+  $("#stats").innerHTML = [
+    ["", s.total, "Total entries"],
+    ["reg", s.registered, "Registered"],
+    ["unreg", s.unregistered, "Un-registered"],
+    ["today", s.today, "Added today"]
+  ].map(([c,n,l]) => `<div class="stat ${c}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+  const top = Object.entries(s.groups || {}).sort((a,b) => b[1]-a[1]).slice(0,8);
+  $("#groupChips").innerHTML = top.map(([g,n]) =>
+    `<span class="chip ${GROUPS.includes(g) ? "" : "new"}">${esc(g)}<b>${n}</b></span>`).join("");
+  const pend = load(LS.pending, []);
+  $("#pendingBar").hidden = !pend.length;
+  $("#pendingTxt").textContent = `${pend.length} entr${pend.length===1?"y is":"ies are"} waiting to be sent to Excel`;
+}
+async function refresh(){
+  let s = localSummary();
+  if (CONFIG.SUMMARY_URL) { try { s = await (await fetch(CONFIG.SUMMARY_URL)).json(); } catch(e){} }
+  renderOverview(s); renderLatest();
+}
+function renderLatest(){
+  const l = load(LS.last, null), box = $("#latest");
+  if (!l) { box.hidden = true; return; }
+  const fresh = Date.now() - l.ts < 10*60*1000;
+  box.hidden = false; box.classList.toggle("fresh", fresh);
+  const extra = [l.newG && `New group: ${l.newG}`, l.newS && `New sub-group: ${l.newS}`].filter(Boolean).join(" · ");
+  box.innerHTML = l.kind === "import"
+    ? `<div><div class="t">Last import${fresh?'<span class="badge-new">NEW</span>':''}</div>
+         <div class="v">${l.count} entries added</div>
+         <div class="d">${esc(l.when)}${extra ? " · " + esc(extra) : ""}</div></div>`
+    : `<div><div class="t">Latest entry${fresh?'<span class="badge-new">NEW</span>':''}</div>
+         <div class="v">${esc(l.p)}</div>
+         <div class="d">${esc(l.g)} › ${esc(l.s)} · ${esc(l.r)} · ${esc(l.when)}${extra ? " · " + esc(extra) : ""}</div></div>`;
+}
+setInterval(renderLatest, 30000);
+
+/* ---------- single entry ---------- */
+function collect(){
+  const v = id => $(id).value.trim();
+  return {
+    partyName:v("#partyName"),
+    group:pick("#group","#groupNew",[...GROUPS,...custom.groups]),
+    subGroup:pick("#subGroup","#subNew",[...SUBGROUPS,...custom.subGroups]),
+    creditPeriod:v("#creditPeriod"), creditLimit:v("#creditLimit"),
+    address:v("#address"), state:v("#state"), country:v("#country"),
+    mainContact:v("#mainContact"), altContact:v("#altContact"), mailId:v("#mailId"),
+    pan:v("#pan").replace(/\s/g,"").toUpperCase(),
+    gstin:v("#gstin").replace(/\s/g,"").toUpperCase()
+  };
+}
+$("#form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const r = collect(), errs = validate(r), box = $("#formErr");
+  if (errs.length) { box.hidden = false; box.innerHTML = "<ul>" + errs.map(x => `<li>${esc(x)}</li>`).join("") + "</ul>"; return; }
+  box.hidden = true;
+  const btn = $("#submitBtn"); btn.disabled = true; btn.textContent = "Adding…";
+  const row = buildRow(r), res = await send([row]);
+  btn.disabled = false; btn.textContent = "Add Entry";
+  if (res.ok) {
+    record([row], "entry");
+    toast(res.local ? "Saved on this device (Excel not connected yet)" : "Entry added to Excel");
+  } else {
+    queuePending([row]); toast("Couldn't reach Excel — entry kept pending");
+  }
+  $("#form").reset(); refresh();
+});
+$("#form").addEventListener("reset", () => setTimeout(() => {
+  $("#groupNewWrap").hidden = true; $("#subNewWrap").hidden = true;
+  $("#groupNew").required = false; $("#subNew").required = false;
+  $("#country").value = "India"; $("#formErr").hidden = true; updReg();
+}, 0));
+
+$("#retryBtn").onclick = async () => {
+  const pend = load(LS.pending, []); if (!pend.length) return;
+  const res = await send(pend);
+  if (res.ok) { store(LS.pending, []); record(pend, pend.length > 1 ? "import" : "entry"); toast("Pending entries sent"); }
+  else toast("Still can't reach Excel");
+  refresh();
+};
+
+/* ---------- template ---------- */
+const HEADERS = ["Party Name","Group","Sub-Group","Credit Period","Credit Limit","Address","State","Country","Main Contact No","Alt Contact No","Mail-ID","PAN No","GSTIN No"];
+$("#tplBtn").onclick = () => {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([HEADERS]);
+  ws["!cols"] = HEADERS.map(h => ({ wch:Math.max(16, h.length + 4) }));
+  XLSX.utils.book_append_sheet(wb, ws, "Party Entry");
+  const g = [...GROUPS, ...custom.groups], s = [...SUBGROUPS, ...custom.subGroups];
+  const opt = [["Group","Sub-Group"]];
+  for (let i = 0; i < Math.max(g.length, s.length); i++) opt.push([g[i] || "", s[i] || ""]);
+  const wo = XLSX.utils.aoa_to_sheet(opt); wo["!cols"] = [{ wch:44 },{ wch:28 }];
+  XLSX.utils.book_append_sheet(wb, wo, "Options");
+  XLSX.writeFile(wb, "Party_Entry_Template.xlsx");
+};
+
+/* ---------- import ---------- */
+const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+const ALIAS = {
+  partyname:"partyName", group:"group", subgroup:"subGroup",
+  creditperiod:"creditPeriod", creditpriod:"creditPeriod", creditlimit:"creditLimit",
+  address:"address", state:"state", country:"country",
+  maincontactno:"mainContact", maincontact:"mainContact", altcontactno:"altContact", altcontact:"altContact",
+  mailid:"mailId", email:"mailId", panno:"pan", pan:"pan", gstinno:"gstin", gstin:"gstin", gstno:"gstin"
+};
+let staged = null;
+
+$("#importBtn").onclick = () => $("#importFile").click();
+$("#importFile").onchange = async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type:"array" });
+    const ws = wb.Sheets["Party Entry"] || wb.Sheets[wb.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(ws, { defval:"", raw:false });
+    const valid = [], skipped = [];
+    json.forEach((o, i) => {
+      const r = { partyName:"",group:"",subGroup:"",creditPeriod:"",creditLimit:"",address:"",state:"",country:"",mainContact:"",altContact:"",mailId:"",pan:"",gstin:"" };
+      let any = false;
+      for (const k in o) {
+        const f = ALIAS[norm(k)]; const v = String(o[k] ?? "").trim();
+        if (v) any = true;
+        if (f) r[f] = v;
+      }
+      if (!any) return;
+      r.pan = r.pan.replace(/\s/g,"").toUpperCase(); r.gstin = r.gstin.replace(/\s/g,"").toUpperCase();
+      r.group = canon(r.group, [...GROUPS, ...custom.groups]);
+      r.subGroup = canon(r.subGroup, [...SUBGROUPS, ...custom.subGroups]);
+      const errs = validate(r);
+      errs.length ? skipped.push({ row:i + 2, why:errs.join("; ") }) : valid.push(r);
+    });
+    staged = valid; showReview(valid.length, skipped);
+  } catch(err) { toast("Couldn't read that file"); }
+  e.target.value = "";
+};
+function showReview(n, skipped){
+  const box = $("#review"); box.hidden = false;
+  box.innerHTML = `<h2>Import review</h2>
+    <p><b>${n}</b> ready to add · <b>${skipped.length}</b> skipped</p>
+    ${skipped.length ? `<ul class="skipped">${skipped.slice(0,8).map(s => `<li>Row ${s.row}: ${esc(s.why)}</li>`).join("")}${skipped.length>8?`<li>…and ${skipped.length-8} more</li>`:""}</ul>` : ""}
+    <div class="actions" style="margin-top:0">
+      <button class="primary" id="confirmImport" ${n ? "" : "disabled"}>Add ${n} entries</button>
+      <button class="ghost" id="cancelImport">Cancel</button>
+    </div>`;
+  $("#cancelImport").onclick = () => { box.hidden = true; staged = null; };
+  $("#confirmImport").onclick = confirmImport;
+  box.scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+async function confirmImport(){
+  if (!staged || !staged.length) return;
+  const btn = $("#confirmImport"); btn.disabled = true; btn.textContent = "Adding…";
+  const stamp = nowIST(), rows = staged.map(r => buildRow(r, stamp));
+  let done = 0, failed = [];
+  for (let i = 0; i < rows.length; i += 50) {
+    const chunk = rows.slice(i, i + 50);
+    if (failed.length) { failed.push(...chunk); continue; }
+    const res = await send(chunk);
+    if (res.ok) { record(chunk, "import"); done += chunk.length; } else failed.push(...chunk);
+  }
+  if (done) { const l = load(LS.last, null); if (l) { l.kind = "import"; l.count = done; store(LS.last, l); } }
+  if (failed.length) { queuePending(failed); toast(`${done} added, ${failed.length} kept pending`); }
+  else toast(`${done} entries added`);
+  $("#review").hidden = true; staged = null; refresh();
+}
+
+/* ---------- init ---------- */
+const on = !!CONFIG.WEBHOOK_URL;
+$("#conn").textContent = on ? "Connected to Excel" : "Excel not connected";
+$("#conn").className = "pill " + (on ? "on" : "off");
+refresh();
+</script>
+</body>
+</html>
