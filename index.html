@@ -68,6 +68,7 @@
   input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,156,249,.15)}
   select{color-scheme:dark}
   textarea{resize:vertical;min-height:70px}
+  input[type=text],input[type=email],textarea{text-transform:uppercase}
   .newwrap{margin-top:8px}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
   .errs{margin:14px 0 0;padding:10px 14px;border-radius:8px;background:rgba(240,96,93,.1);border:1px solid rgba(240,96,93,.4);color:#ffb4b2;font-size:14px}
@@ -99,6 +100,13 @@
   @keyframes m-pop{from{opacity:0;transform:scale(.85) translateY(10px)}to{opacity:1;transform:none}}
   @keyframes m-draw{to{stroke-dashoffset:0}}
   @media(prefers-reduced-motion:reduce){.modal-bg,.modal{animation:none}.tick circle,.tick path{animation:none;stroke-dashoffset:0}}
+
+  .warn-ic{width:68px;height:68px;margin:0 auto;display:grid;place-items:center;border-radius:50%;font-size:34px;font-weight:800;
+    color:var(--warn);background:rgba(227,179,65,.12);border:3px solid var(--warn);animation:m-shake .5s ease-out .2s}
+  .modal .btns{display:flex;gap:10px}
+  .modal .btns button{width:auto;flex:1}
+  @keyframes m-shake{0%,100%{transform:none}20%{transform:rotate(-8deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(5deg)}}
+  @media(prefers-reduced-motion:reduce){.warn-ic{animation:none}}
 
   /* ---------- credit badge (top right) : simple & clean ---------- */
   .credit{display:flex;justify-content:flex-end;margin:-14px 0 14px;animation:cr-in .7s ease-out both}
@@ -262,6 +270,18 @@
     <button class="primary" id="mOk">OK</button>
   </div>
 </div>
+<div class="modal-bg" id="dupBg" hidden>
+  <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="warn-ic">!</div>
+    <h3 id="dTitle">Party already exists</h3>
+    <p class="msg">This party is already in the sheet. Do you still want to add it again?</p>
+    <div class="det" id="dDet"></div>
+    <div class="btns">
+      <button class="ghost" id="dCancel">Cancel</button>
+      <button class="primary" id="dAdd">Add anyway</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -308,7 +328,7 @@ const COUNTRIES = ["India","Bhutan","Nepal","Sri Lanka","Bangladesh"];
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const LS = { log:"pm_log_v1", pending:"pm_pending_v1", custom:"pm_custom_v2", last:"pm_last_v1" };
+const LS = { log:"pm_log_v1", pending:"pm_pending_v1", custom:"pm_custom_v2", last:"pm_last_v1", names:"pm_names_v1" };
 const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } };
 const store = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
 const toast = m => { const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("show"),2600); };
@@ -388,10 +408,12 @@ function buildRow(r, stamp){
 }
 
 /* ---------- sending / logging ---------- */
+const KEEP_CASE = ["addDate","addTime","regStatus"];
+const upperRows = rows => rows.map(r => Object.fromEntries(Object.entries(r).map(([k,v]) => [k, KEEP_CASE.includes(k) ? v : String(v ?? "").toUpperCase()])));
 async function send(rows){
   if (!CONFIG.WEBHOOK_URL) return { ok:true, local:true };
   try {
-    const res = await fetch(CONFIG.WEBHOOK_URL, { method:"POST", headers:{ "Content-Type":"text/plain" }, body:JSON.stringify({ rows }) });
+    const res = await fetch(CONFIG.WEBHOOK_URL, { method:"POST", headers:{ "Content-Type":"text/plain" }, body:JSON.stringify({ rows:upperRows(rows) }) });
     if (!res.ok) return { ok:false };
     const t = await res.text();
     if (!t) return { ok:true };
@@ -407,6 +429,7 @@ function record(rows, kind){
     if (!SUBGROUPS.includes(r.subGroup) && !custom.subGroups.includes(r.subGroup)) { custom.subGroups.push(r.subGroup); newS = r.subGroup; }
   });
   store(LS.log, log); store(LS.custom, custom); refreshSelects();
+  const names = load(LS.names, []); rows.forEach(r => names.push(normName(r.partyName))); store(LS.names, names);
   const t = nowIST(), f = rows[0];
   store(LS.last, { kind, count:rows.length, p:f.partyName, g:f.group, s:f.subGroup, r:f.regStatus, c:f.comment, when:`${t.date} ${t.time}`, ts:Date.now(), newG, newS });
 }
@@ -433,7 +456,7 @@ function renderOverview(s){
   ].map(([c,n,l]) => `<div class="stat ${c}"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
   const top = Object.entries(s.groups || {}).sort((a,b) => b[1]-a[1]).slice(0,8);
   $("#groupChips").innerHTML = top.map(([g,n]) =>
-    `<span class="chip ${GROUPS.includes(g) ? "" : "new"}">${esc(g)}<b>${n}</b></span>`).join("");
+    `<span class="chip ${GROUPS.some(x => x.toUpperCase() === String(g).toUpperCase()) ? "" : "new"}">${esc(g)}<b>${n}</b></span>`).join("");
   const pend = load(LS.pending, []);
   $("#pendingBar").hidden = !pend.length;
   $("#pendingTxt").textContent = `${pend.length} entr${pend.length===1?"y is":"ies are"} waiting to be sent to Excel`;
@@ -472,6 +495,38 @@ $("#mOk").onclick = closePopup;
 $("#modalBg").addEventListener("click", e => { if (e.target.id === "modalBg") closePopup(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closePopup(); });
 
+/* ---------- duplicate check ---------- */
+const normName = s => String(s || "").toUpperCase().replace(/\s+/g, " ").trim();
+/* Checks the sheet through SUMMARY_URL?check=["NAME",...] (expects {duplicates:[...]}),
+   plus the names saved from this browser. If the sheet can't be reached, it checks locally only. */
+async function findDuplicates(names){
+  const local = new Set(load(LS.names, []));
+  const dup = new Set(names.filter(n => local.has(n)));
+  if (CONFIG.SUMMARY_URL) {
+    const todo = names.filter(n => !dup.has(n));
+    for (let i = 0; i < todo.length; i += 20) {
+      try {
+        const chunk = todo.slice(i, i + 20);
+        const j = await (await fetch(CONFIG.SUMMARY_URL + "?check=" + encodeURIComponent(JSON.stringify(chunk)))).json();
+        if (Array.isArray(j.duplicates)) j.duplicates.forEach(n => dup.add(normName(n)));
+      } catch(e){}
+    }
+  }
+  return dup;
+}
+function dupPopup(r){
+  return new Promise(resolve => {
+    $("#dDet").innerHTML = [["Party", r.partyName], ["Group", r.group], ["Sub-Group", r.subGroup]]
+      .map(([k,v]) => `<div><span>${esc(k)}</span><b>${esc(String(v).toUpperCase())}</b></div>`).join("");
+    const bg = $("#dupBg"); bg.hidden = false; $("#dCancel").focus();
+    const done = v => { bg.hidden = true; $("#dCancel").onclick = $("#dAdd").onclick = null; document.removeEventListener("keydown", esc2); resolve(v); };
+    const esc2 = e => { if (e.key === "Escape") done(false); };
+    document.addEventListener("keydown", esc2);
+    $("#dCancel").onclick = () => done(false);
+    $("#dAdd").onclick = () => done(true);
+  });
+}
+
 /* ---------- single entry ---------- */
 function collect(){
   const v = id => $(id).value.trim();
@@ -492,7 +547,11 @@ $("#form").addEventListener("submit", async e => {
   const r = collect(), errs = validate(r), box = $("#formErr");
   if (errs.length) { box.hidden = false; box.innerHTML = "<ul>" + errs.map(x => `<li>${esc(x)}</li>`).join("") + "</ul>"; return; }
   box.hidden = true;
-  const btn = $("#submitBtn"); btn.disabled = true; btn.textContent = "Adding…";
+  const btn = $("#submitBtn"); btn.disabled = true; btn.textContent = "Checking…";
+  if ((await findDuplicates([normName(r.partyName)])).size && !(await dupPopup(r))) {
+    btn.disabled = false; btn.textContent = "Add Entry"; return;
+  }
+  btn.textContent = "Adding…";
   const row = buildRow(r), res = await send([row]);
   btn.disabled = false; btn.textContent = "Add Entry";
   if (res.ok) {
@@ -566,9 +625,19 @@ $("#importFile").onchange = async e => {
       r.group = canon(r.group, [...GROUPS, ...custom.groups]);
       r.subGroup = canon(r.subGroup, [...SUBGROUPS, ...custom.subGroups]);
       const errs = validate(r);
-      errs.length ? skipped.push({ row:i + 2, why:errs.join("; ") }) : valid.push(r);
+      errs.length ? skipped.push({ row:i + 2, why:errs.join("; ") }) : valid.push({ ...r, _row:i + 2 });
     });
-    staged = valid; showReview(valid.length, skipped);
+    toast("Checking for existing parties…");
+    const dups = await findDuplicates([...new Set(valid.map(r => normName(r.partyName)))]);
+    const seen = new Set(), keep = [];
+    valid.forEach(({ _row, ...r }) => {
+      const n = normName(r.partyName);
+      if (dups.has(n)) skipped.push({ row:_row, why:`"${r.partyName}" already exists in the sheet` });
+      else if (seen.has(n)) skipped.push({ row:_row, why:`"${r.partyName}" is repeated in this file` });
+      else { seen.add(n); keep.push(r); }
+    });
+    skipped.sort((a, b) => a.row - b.row);
+    staged = keep; showReview(keep.length, skipped);
   } catch(err) { toast("Couldn't read that file"); }
   e.target.value = "";
 };
