@@ -80,43 +80,34 @@
   .toast{position:fixed;bottom:22px;right:22px;background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:8px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:320px;z-index:9}
   .toast.show{opacity:1;transform:none}
 
-  /* ---------- credit badge (top right) ---------- */
-  .credit{display:flex;justify-content:flex-end;margin:-14px 0 14px;animation:cr-in .8s cubic-bezier(.2,.8,.2,1) both}
-  .credit-inner{position:relative;display:inline-flex;align-items:center;gap:9px;padding:7px 16px 7px 12px;border-radius:99px;
-    background:linear-gradient(var(--panel),var(--panel)) padding-box,
-               linear-gradient(120deg,#4f9cf9,#a371f7,#3fb950,#4f9cf9) border-box;
-    background-size:100% 100%,300% 300%;border:1px solid transparent;
-    font-size:12.5px;letter-spacing:.4px;color:var(--muted);
-    animation:cr-border 6s linear infinite,cr-float 4s ease-in-out infinite;
-    box-shadow:0 0 18px rgba(79,156,249,.18);overflow:hidden;cursor:default}
-  .credit-inner::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
-    background:linear-gradient(100deg,transparent,rgba(255,255,255,.18),transparent);
-    transform:skewX(-20deg);animation:cr-sweep 3.6s ease-in-out infinite}
-  .credit .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(63,185,80,.6);animation:cr-pulse 1.8s infinite}
-  .credit .by{color:var(--muted)}
-  .credit .name{font-weight:700;background:linear-gradient(90deg,#4f9cf9,#a371f7,#3fb950,#4f9cf9);background-size:250% 100%;
-    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:cr-text 4s linear infinite}
-  .credit .role{color:var(--text);opacity:.85;font-weight:500}
-  .credit-inner:hover{transform:scale(1.04);transition:transform .2s}
-  @keyframes cr-in{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
-  @keyframes cr-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-  @keyframes cr-border{0%{background-position:0 0,0% 50%}100%{background-position:0 0,300% 50%}}
-  @keyframes cr-text{to{background-position:250% 0}}
-  @keyframes cr-sweep{0%,55%{left:-60%}100%{left:140%}}
-  @keyframes cr-pulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.6)}70%{box-shadow:0 0 0 9px rgba(63,185,80,0)}100%{box-shadow:0 0 0 0 rgba(63,185,80,0)}}
-  @media(max-width:560px){.credit{margin:-8px 0 12px}.credit-inner{font-size:11.5px}}
-  @media(prefers-reduced-motion:reduce){.credit,.credit-inner,.credit-inner::after,.credit .dot,.credit .name{animation:none}}
+  /* ---------- credit badge (top right) : simple & clean ---------- */
+  .credit{display:flex;justify-content:flex-end;margin:-14px 0 14px;animation:cr-in .7s ease-out both}
+  .tag{display:inline-flex;align-items:center;gap:10px;padding:5px 16px 5px 5px;border-radius:99px;
+    background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--muted);
+    transition:transform .2s,border-color .2s,box-shadow .2s;cursor:default}
+  .tag:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 6px 18px rgba(79,156,249,.18)}
+  .tag .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),#a371f7);color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px;
+    animation:cr-ring 2.6s ease-out infinite}
+  .tag .name{color:var(--text);font-weight:650;position:relative}
+  .tag .name::after{content:"";position:absolute;left:0;bottom:-2px;height:2px;width:100%;border-radius:2px;
+    background:linear-gradient(90deg,var(--accent),#a371f7);transform:scaleX(0);transform-origin:left;
+    animation:cr-line 4s ease-in-out infinite}
+  .tag .role{color:var(--accent)}
+  @keyframes cr-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  @keyframes cr-ring{0%{box-shadow:0 0 0 0 rgba(79,156,249,.5)}70%,100%{box-shadow:0 0 0 9px rgba(79,156,249,0)}}
+  @keyframes cr-line{0%,15%{transform:scaleX(0)}45%,75%{transform:scaleX(1)}100%{transform:scaleX(0);transform-origin:right}}
+  @media(max-width:560px){.credit{margin:-8px 0 12px}.tag{font-size:12px}}
+  @media(prefers-reduced-motion:reduce){.credit,.tag .av,.tag .name::after{animation:none}.tag .name::after{transform:scaleX(1)}}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <div class="credit">
-    <div class="credit-inner">
-      <span class="dot"></span>
-      <span class="by">Made by</span>
-      <span class="name">Abhi Sarkar</span>
-      <span class="role">[Data Analyst]</span>
+    <div class="tag">
+      <span class="av">AS</span>
+      <span>Made by <span class="name">Abhi Sarkar</span> <span class="role">[Data Analyst]</span></span>
     </div>
   </div>
 
@@ -267,6 +258,9 @@ const CONFIG = {
 };
 
 const GROUPS = [
+  "Sales Person Wise","Exports","Corporate","Sundry Debtors - Legal","Sundry Debtors -Non Core","Sundry Debtors Domestic","Other"
+];
+const SUBGROUPS = [
   "SD- AC/ Sandeep Kapoor","SD- AC/ Chittaranjan Senapati","SD- AC/ Ankit Ladsaria","Sundry Debtors - CS",
   "Sundry Debtors -Merchant Export","Sundry Debtors  -Bisleri","SD- AC/ Jityendra Kumar","Sundry Debtors - Bhutan Exports",
   "Disputed Trade Receivables Considered Good","SD- AC/ Ankit Ji","SD- AC/ Dheeraj Farmania","SD- AC/ Akash Maykar",
@@ -279,16 +273,13 @@ const GROUPS = [
   "Sundry Debtors  -Emami","Sundry Debtors-Non Core","Pepsi, Co Packers, Franchise - North",
   "Sundry Debtors - Legal","Sundry Debtors - Tata"
 ];
-const SUBGROUPS = [
-  "Sales Person Wise","Exports","Corporate","Sundry Debtors - Legal","Sundry Debtors -Non Core","Sundry Debtors Domestic","Other"
-];
 const STATES = ["Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli and Daman and Diu","Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry"];
 const COUNTRIES = ["India","Bhutan","Nepal","Sri Lanka","Bangladesh"];
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const LS = { log:"pm_log_v1", pending:"pm_pending_v1", custom:"pm_custom_v1", last:"pm_last_v1" };
+const LS = { log:"pm_log_v1", pending:"pm_pending_v1", custom:"pm_custom_v2", last:"pm_last_v1" };
 const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } };
 const store = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
 const toast = m => { const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("show"),2600); };
