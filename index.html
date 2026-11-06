@@ -80,6 +80,26 @@
   .toast{position:fixed;bottom:22px;right:22px;background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:8px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:320px;z-index:9}
   .toast.show{opacity:1;transform:none}
 
+  /* ---------- submission popup ---------- */
+  .modal-bg{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:rgba(1,4,9,.65);backdrop-filter:blur(4px);animation:m-fade .2s ease-out}
+  .modal{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 24px 22px;text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,.55),0 0 0 1px rgba(63,185,80,.15);animation:m-pop .35s cubic-bezier(.2,1.2,.3,1)}
+  .modal h3{margin:14px 0 4px;font-size:19px}
+  .modal .msg{margin:0 0 16px;color:var(--muted);font-size:13px}
+  .modal .det{text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px 14px;margin-bottom:18px}
+  .modal .det div{display:flex;justify-content:space-between;gap:14px;padding:7px 0;font-size:13px;border-bottom:1px solid var(--line)}
+  .modal .det div:last-child{border-bottom:0}
+  .modal .det span{color:var(--muted);white-space:nowrap}
+  .modal .det b{font-weight:600;text-align:right;word-break:break-word}
+  .modal button{width:100%}
+  .tick{width:68px;height:68px;margin:0 auto;display:block}
+  .tick circle{fill:rgba(63,185,80,.12);stroke:var(--ok);stroke-width:3;stroke-dasharray:176;stroke-dashoffset:176;animation:m-draw .6s ease-out .1s forwards}
+  .tick path{fill:none;stroke:var(--ok);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:40;stroke-dashoffset:40;animation:m-draw .4s ease-out .55s forwards}
+  @keyframes m-fade{from{opacity:0}to{opacity:1}}
+  @keyframes m-pop{from{opacity:0;transform:scale(.85) translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes m-draw{to{stroke-dashoffset:0}}
+  @media(prefers-reduced-motion:reduce){.modal-bg,.modal{animation:none}.tick circle,.tick path{animation:none;stroke-dashoffset:0}}
+
   /* ---------- credit badge (top right) : simple & clean ---------- */
   .credit{display:flex;justify-content:flex-end;margin:-14px 0 14px;animation:cr-in .7s ease-out both}
   .tag{display:inline-flex;align-items:center;gap:10px;padding:5px 16px 5px 5px;border-radius:99px;
@@ -231,6 +251,15 @@
         <button type="reset" class="ghost">Clear</button>
       </div>
     </form>
+  </div>
+</div>
+<div class="modal-bg" id="modalBg" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <svg class="tick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28"/><path d="M20 33l8 8 16-17"/></svg>
+    <h3 id="mTitle">Submitted</h3>
+    <p class="msg" id="mMsg"></p>
+    <div class="det" id="mDet"></div>
+    <button class="primary" id="mOk">OK</button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -430,6 +459,19 @@ function renderLatest(){
 }
 setInterval(renderLatest, 30000);
 
+/* ---------- submission popup ---------- */
+function popup(title, msg, rows){
+  $("#mTitle").textContent = title;
+  $("#mMsg").textContent = msg || "";
+  $("#mDet").innerHTML = rows.map(([k,v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("");
+  $("#modalBg").hidden = false;
+  $("#mOk").focus();
+}
+const closePopup = () => { $("#modalBg").hidden = true; };
+$("#mOk").onclick = closePopup;
+$("#modalBg").addEventListener("click", e => { if (e.target.id === "modalBg") closePopup(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePopup(); });
+
 /* ---------- single entry ---------- */
 function collect(){
   const v = id => $(id).value.trim();
@@ -455,7 +497,8 @@ $("#form").addEventListener("submit", async e => {
   btn.disabled = false; btn.textContent = "Add Entry";
   if (res.ok) {
     record([row], "entry");
-    toast(res.local ? "Saved on this device (Excel not connected yet)" : "Entry added to Excel");
+    popup("Entry submitted", res.local ? "Saved on this device (Excel not connected yet)" : "Your entry was added successfully.",
+      [["Party", row.partyName], ["Group", row.group], ["Sub-Group", row.subGroup], ["Status", row.regStatus], ["Date & Time", row.addDate + " " + row.addTime]]);
   } else {
     queuePending([row]); toast("Couldn't reach Excel — entry kept pending");
   }
@@ -555,7 +598,7 @@ async function confirmImport(){
   }
   if (done) { const l = load(LS.last, null); if (l) { l.kind = "import"; l.count = done; store(LS.last, l); } }
   if (failed.length) { queuePending(failed); toast(`${done} added, ${failed.length} kept pending`); }
-  else toast(`${done} entries added`);
+  else popup("Import complete", "Your entries were added successfully.", [["Entries added", String(done)], ["Date & Time", stamp.date + " " + stamp.time]]);
   $("#review").hidden = true; staged = null; refresh();
 }
 
