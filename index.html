@@ -79,10 +79,46 @@
 
   .toast{position:fixed;bottom:22px;right:22px;background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:8px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:320px;z-index:9}
   .toast.show{opacity:1;transform:none}
+
+  /* ---------- credit badge (top right) ---------- */
+  .credit{display:flex;justify-content:flex-end;margin:-14px 0 14px;animation:cr-in .8s cubic-bezier(.2,.8,.2,1) both}
+  .credit-inner{position:relative;display:inline-flex;align-items:center;gap:9px;padding:7px 16px 7px 12px;border-radius:99px;
+    background:linear-gradient(var(--panel),var(--panel)) padding-box,
+               linear-gradient(120deg,#4f9cf9,#a371f7,#3fb950,#4f9cf9) border-box;
+    background-size:100% 100%,300% 300%;border:1px solid transparent;
+    font-size:12.5px;letter-spacing:.4px;color:var(--muted);
+    animation:cr-border 6s linear infinite,cr-float 4s ease-in-out infinite;
+    box-shadow:0 0 18px rgba(79,156,249,.18);overflow:hidden;cursor:default}
+  .credit-inner::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.18),transparent);
+    transform:skewX(-20deg);animation:cr-sweep 3.6s ease-in-out infinite}
+  .credit .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(63,185,80,.6);animation:cr-pulse 1.8s infinite}
+  .credit .by{color:var(--muted)}
+  .credit .name{font-weight:700;background:linear-gradient(90deg,#4f9cf9,#a371f7,#3fb950,#4f9cf9);background-size:250% 100%;
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:cr-text 4s linear infinite}
+  .credit .role{color:var(--text);opacity:.85;font-weight:500}
+  .credit-inner:hover{transform:scale(1.04);transition:transform .2s}
+  @keyframes cr-in{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
+  @keyframes cr-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  @keyframes cr-border{0%{background-position:0 0,0% 50%}100%{background-position:0 0,300% 50%}}
+  @keyframes cr-text{to{background-position:250% 0}}
+  @keyframes cr-sweep{0%,55%{left:-60%}100%{left:140%}}
+  @keyframes cr-pulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.6)}70%{box-shadow:0 0 0 9px rgba(63,185,80,0)}100%{box-shadow:0 0 0 0 rgba(63,185,80,0)}}
+  @media(max-width:560px){.credit{margin:-8px 0 12px}.credit-inner{font-size:11.5px}}
+  @media(prefers-reduced-motion:reduce){.credit,.credit-inner,.credit-inner::after,.credit .dot,.credit .name{animation:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
+
+  <div class="credit">
+    <div class="credit-inner">
+      <span class="dot"></span>
+      <span class="by">Made by</span>
+      <span class="name">Abhi Sarkar</span>
+      <span class="role">[Data Analyst]</span>
+    </div>
+  </div>
 
   <header>
     <div>
