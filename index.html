@@ -190,6 +190,11 @@
           <label for="gstin">GSTIN No</label>
           <input id="gstin" type="text" maxlength="15" placeholder="22ABCDE1234F1Z5" style="text-transform:uppercase" autocomplete="off">
         </div>
+
+        <div class="full">
+          <label for="comment">Comment</label>
+          <textarea id="comment" placeholder="Any remarks about this party…"></textarea>
+        </div>
       </div>
 
       <div class="errs" id="formErr" hidden></div>
@@ -217,7 +222,7 @@
    Payload POSTed (text/plain JSON):
    { rows:[ { addDate, addTime, partyName, group, subGroup, creditPeriod,
               creditLimit, address, state, country, mainContact, altContact,
-              mailId, pan, gstin, regStatus } ] }
+              mailId, pan, gstin, comment, regStatus } ] }
    Sr. No. is NOT sent — make it a calculated column in the Excel table.
    ===================================================================== */
 const CONFIG = {
@@ -347,7 +352,7 @@ function record(rows, kind){
   });
   store(LS.log, log); store(LS.custom, custom); refreshSelects();
   const t = nowIST(), f = rows[0];
-  store(LS.last, { kind, count:rows.length, p:f.partyName, g:f.group, s:f.subGroup, r:f.regStatus, when:`${t.date} ${t.time}`, ts:Date.now(), newG, newS });
+  store(LS.last, { kind, count:rows.length, p:f.partyName, g:f.group, s:f.subGroup, r:f.regStatus, c:f.comment, when:`${t.date} ${t.time}`, ts:Date.now(), newG, newS });
 }
 function queuePending(rows){ store(LS.pending, [...load(LS.pending, []), ...rows]); }
 
@@ -394,7 +399,7 @@ function renderLatest(){
          <div class="d">${esc(l.when)}${extra ? " · " + esc(extra) : ""}</div></div>`
     : `<div><div class="t">Latest entry${fresh?'<span class="badge-new">NEW</span>':''}</div>
          <div class="v">${esc(l.p)}</div>
-         <div class="d">${esc(l.g)} › ${esc(l.s)} · ${esc(l.r)} · ${esc(l.when)}${extra ? " · " + esc(extra) : ""}</div></div>`;
+         <div class="d">${esc(l.g)} › ${esc(l.s)} · ${esc(l.r)} · ${esc(l.when)}${extra ? " · " + esc(extra) : ""}${l.c ? " · 💬 " + esc(l.c) : ""}</div></div>`;
 }
 setInterval(renderLatest, 30000);
 
@@ -409,7 +414,8 @@ function collect(){
     address:v("#address"), state:v("#state"), country:v("#country"),
     mainContact:v("#mainContact"), altContact:v("#altContact"), mailId:v("#mailId"),
     pan:v("#pan").replace(/\s/g,"").toUpperCase(),
-    gstin:v("#gstin").replace(/\s/g,"").toUpperCase()
+    gstin:v("#gstin").replace(/\s/g,"").toUpperCase(),
+    comment:v("#comment")
   };
 }
 $("#form").addEventListener("submit", async e => {
@@ -443,7 +449,7 @@ $("#retryBtn").onclick = async () => {
 };
 
 /* ---------- template ---------- */
-const HEADERS = ["Party Name","Group","Sub-Group","Credit Period","Credit Limit","Address","State","Country","Main Contact No","Alt Contact No","Mail-ID","PAN No","GSTIN No"];
+const HEADERS = ["Party Name","Group","Sub-Group","Credit Period","Credit Limit","Address","State","Country","Main Contact No","Alt Contact No","Mail-ID","PAN No","GSTIN No","Comment"];
 $("#tplBtn").onclick = () => {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([HEADERS]);
@@ -464,7 +470,8 @@ const ALIAS = {
   creditperiod:"creditPeriod", creditpriod:"creditPeriod", creditlimit:"creditLimit",
   address:"address", state:"state", country:"country",
   maincontactno:"mainContact", maincontact:"mainContact", altcontactno:"altContact", altcontact:"altContact",
-  mailid:"mailId", email:"mailId", panno:"pan", pan:"pan", gstinno:"gstin", gstin:"gstin", gstno:"gstin"
+  mailid:"mailId", email:"mailId", panno:"pan", pan:"pan", gstinno:"gstin", gstin:"gstin", gstno:"gstin",
+  comment:"comment", comments:"comment", remark:"comment", remarks:"comment"
 };
 let staged = null;
 
@@ -477,7 +484,7 @@ $("#importFile").onchange = async e => {
     const json = XLSX.utils.sheet_to_json(ws, { defval:"", raw:false });
     const valid = [], skipped = [];
     json.forEach((o, i) => {
-      const r = { partyName:"",group:"",subGroup:"",creditPeriod:"",creditLimit:"",address:"",state:"",country:"",mainContact:"",altContact:"",mailId:"",pan:"",gstin:"" };
+      const r = { partyName:"",group:"",subGroup:"",creditPeriod:"",creditLimit:"",address:"",state:"",country:"",mainContact:"",altContact:"",mailId:"",pan:"",gstin:"",comment:"" };
       let any = false;
       for (const k in o) {
         const f = ALIAS[norm(k)]; const v = String(o[k] ?? "").trim();
