@@ -68,7 +68,7 @@
   input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,156,249,.15)}
   select{color-scheme:dark}
   textarea{resize:vertical;min-height:70px}
-  input[type=text],input[type=email],textarea{text-transform:uppercase}
+  input[type=text],textarea{text-transform:capitalize}input[type=email]{text-transform:lowercase}#groupNew,#subNew{text-transform:none}
   .newwrap{margin-top:8px}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
   .errs{margin:14px 0 0;padding:10px 14px;border-radius:8px;background:rgba(240,96,93,.1);border:1px solid rgba(240,96,93,.4);color:#ffb4b2;font-size:14px}
@@ -408,8 +408,18 @@ function buildRow(r, stamp){
 }
 
 /* ---------- sending / logging ---------- */
-const KEEP_CASE = ["addDate","addTime","regStatus"];
-const upperRows = rows => rows.map(r => Object.fromEntries(Object.entries(r).map(([k,v]) => [k, KEEP_CASE.includes(k) ? v : String(v ?? "").toUpperCase()])));
+/* Text goes to the sheet as "Title Case" (first letter capital, rest small).
+   PAN / GSTIN stay ALL CAPS, Mail-ID is lowercase, Group / Sub-Group / date / time / status stay as selected. */
+const KEEP_CASE = ["addDate","addTime","regStatus","group","subGroup"];
+const titleCase = s => s.toLowerCase().replace(/(^|[\s\-\/(.,&_])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+const fmtVal = (k, v) => {
+  v = String(v ?? "");
+  if (KEEP_CASE.includes(k)) return v;
+  if (k === "pan" || k === "gstin") return v.toUpperCase();
+  if (k === "mailId") return v.toLowerCase();
+  return titleCase(v);
+};
+const upperRows = rows => rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, fmtVal(k, v)])));
 async function send(rows){
   if (!CONFIG.WEBHOOK_URL) return { ok:true, local:true };
   try {
