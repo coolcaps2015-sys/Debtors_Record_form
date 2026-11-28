@@ -71,6 +71,8 @@
   textarea{resize:vertical;min-height:70px}
   input[type=text],textarea{text-transform:capitalize}input[type=email]{text-transform:lowercase}#groupNew,#subNew{text-transform:none}
   .newwrap{margin-top:8px}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:4px}
+  .hint.on{color:var(--accent)}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
   .errs{margin:14px 0 0;padding:10px 14px;border-radius:8px;background:rgba(240,96,93,.1);border:1px solid rgba(240,96,93,.4);color:#ffb4b2;font-size:14px}
   .errs ul{margin:0;padding-left:18px}
@@ -187,6 +189,7 @@
         <div>
           <label for="group">Group<i>*</i></label>
           <select id="group" required></select>
+          <div class="hint" id="groupHint"></div>
           <div class="newwrap" id="groupNewWrap" hidden>
             <input id="groupNew" type="text" placeholder="Enter new group name">
           </div>
@@ -195,6 +198,7 @@
         <div>
           <label for="subGroup">Sub-Group<i>*</i></label>
           <select id="subGroup" required></select>
+          <div class="hint" id="subHint"></div>
           <div class="newwrap" id="subNewWrap" hidden>
             <input id="subNew" type="text" placeholder="Enter new sub-group name">
           </div>
@@ -288,77 +292,142 @@
 <script>
 /* =====================================================================
    CONFIG
-   WEBHOOK_URL : Power Automate "When an HTTP request is received" URL.
-                 The flow adds each row to the main Excel table, so the
-                 main sheet is never exposed to the people using this page.
-   SUMMARY_URL : (optional) URL returning
-                 {total, registered, unregistered, today, groups:{name:count}}
-                 so the overview shows the whole sheet. If empty, the
-                 overview counts entries made from this browser.
+   WEBHOOK_URL : Google Apps Script web-app URL (Code.gs). It adds each row
+                 to the main sheet, so the sheet is never exposed to the
+                 people using this page.
+   SUMMARY_URL : same URL. GET returns {total, registered, unregistered,
+                 today, groups:{name:count}}  and  ?check=[...] returns
+                 {duplicates:[...]}.
 
    Payload POSTed (text/plain JSON):
-   { rows:[ { addDate, addTime, partyName, group, subGroup, creditPeriod,
-              creditLimit, address, state, country, mainContact, altContact,
-              mailId, pan, gstin, comment, regStatus } ] }
-   Sr. No. is NOT sent — make it a calculated column in the Excel table.
+   { rows:[ { addDate, addTime, date, time, timestamp, partyName, group,
+              subGroup, creditPeriod, creditLimit, address, state, country,
+              mainContact, altContact, mailId, pan, gstin, comment,
+              regStatus } ] }
+   Date / Time are taken from the user's clock in IST at the moment of
+   submit, and Code.gs ALSO stamps them on the server if they are missing.
    ===================================================================== */
 const CONFIG = {
   WEBHOOK_URL: "https://script.google.com/macros/s/AKfycbwuaoRgvdQaVmh7prcQkWRjfq_AQPylzEV-yy8ZqndOy0FN7F3mT-BXb3TQpkFy2gTSqA/exec",
   SUMMARY_URL: "https://script.google.com/macros/s/AKfycbwuaoRgvdQaVmh7prcQkWRjfq_AQPylzEV-yy8ZqndOy0FN7F3mT-BXb3TQpkFy2gTSqA/exec"
 };
 
-const GROUPS = [
-  "Sales Person Wise","Exports","Corporate","Sundry Debtors - Legal","Sundry Debtors -Non Core","Sundry Debtors Domestic","Other"
+/* ---------------------------------------------------------------------
+   GROUP  ->  SUB-GROUP map  (built from Book.xlsx : 1,008 rows / 45 pairs)
+   Group and Sub-Group filter each other:
+     • pick a Group      -> Sub-Group list shows only that group's sub-groups
+     • pick a Sub-Group  -> Group list shows only the group(s) it belongs to
+   --------------------------------------------------------------------- */
+const PAIR_MAP = {
+  "Sales Person Wise": ["SD- AC/ Ankit Ji","SD- AC/ Sandeep Kapoor","SD- AC/ Nikhil Jalan","SD- AC/ Ankit Ladsaria","SD- AC/ Prashant Duggar","SD- AC/ Sameer Verma","SD- AC/ Vishal Goenka","SD- AC/ Nikit Ji","SD- AC/ Amit Rajgaria","SD- AC/ Jityendra Kumar","SD- AC/ Chittaranjan Senapati","SD- AC/ Esha Sharma","SD- AC/ Ankit Gupta","SD-AC/ Kishor Rai","SD- AC/ Dheeraj Farmania","SD- AC/ Vanshay Ji","SD- AC/ Deepak Jha","SD- AC/ Manoj Jha","Rohan Enterprise","SD- AC/ Samiran Dutta","Sundry Debtors - CS","SD- AC/ Akash Maykar","SD- AC/ Amit Agarwal/Vintech","SD- AC/ Jityendra Kumar-Non Core","Sundry Debtors","SD-AC/ Kishor Rai -Critical"],
+  "Corporate": ["Sundry Debtors  -Bisleri","Sundry Debtors  -Reliance","Sundry Debtors  -Parle","Sundry Debtors -Patanjali","Sundry Debotrs- Dabur","Sundry Debotrs- IRCTC","Sundry Debtors - Emami","Sundry Debtors-Non Core","Sundry Debtors - Tata","Sundry Debotrs- Kingfisher"],
+  "Exports": ["Sundry Debtors - Bhutan Exports","Sundry Debtors -Nepal Exports","Sundry Debtors - Srilanka Exports","Sundry Debtors -Merchant Export"],
+  "Sundry Debtors -Non Core": ["SD- AC/ Jityendra Kumar-Non Core"],
+  "Sundry Debtors Domestic": ["Sundry Debtors - General","Sundry Debtors - Legal","Sundry Debtors for Granules Trading"],
+  "Sundry Debtors - Legal": ["Disputed Trade Receivables Considered Good"]
+};
+/* Older sub-groups that were in the previous form but are not in the Excel.
+   They are kept (so nothing is lost) under the "Other" group. */
+const LEGACY_SUBS = [
+  "Branch / Divisions","Other Income","Indirect Expenses","Loan To Subsidiary Company",
+  "Pepsi, Co Packers, Franchise - North","Sundry Debtors  -Emami","Sundry Debtors - Legal"
 ];
-const SUBGROUPS = [
-  "SD- AC/ Sandeep Kapoor","SD- AC/ Chittaranjan Senapati","SD- AC/ Ankit Ladsaria","Sundry Debtors - CS",
-  "Sundry Debtors -Merchant Export","Sundry Debtors  -Bisleri","SD- AC/ Jityendra Kumar","Sundry Debtors - Bhutan Exports",
-  "Disputed Trade Receivables Considered Good","SD- AC/ Ankit Ji","SD- AC/ Dheeraj Farmania","SD- AC/ Akash Maykar",
-  "SD- AC/ Jityendra Kumar-Non Core","Sundry Debotrs- IRCTC","Sundry Debtors  -Parle","Sundry Debtors -Nepal Exports",
-  "Sundry Debtors - General","Sundry Debotrs- Kingfisher","Sundry Debtors -Patanjali","SD- AC/ Manoj Jha",
-  "SD- AC/ Amit Agarwal/Vintech","Sundry Debtors  -Reliance","SD- AC/ Nikhil Jalan","SD- AC/ Sameer Verma",
-  "SD- AC/ Nikit Ji","SD- AC/ Samiran Dutta","SD- AC/ Ankit Gupta","SD- AC/ Vishal Goenka",
-  "Sundry Debtors - Srilanka Exports","Branch / Divisions","SD- AC/ Prashant Duggar","SD-AC/ Kishor Rai",
-  "Other Income","Indirect Expenses","Loan To Subsidiary Company","SD- AC/ Amit Rajgaria","SD- AC/ Esha Sharma",
-  "Sundry Debtors  -Emami","Sundry Debtors-Non Core","Pepsi, Co Packers, Franchise - North",
-  "Sundry Debtors - Legal","Sundry Debtors - Tata"
-];
+const GROUPS = ["Sales Person Wise","Exports","Corporate","Sundry Debtors - Legal","Sundry Debtors -Non Core","Sundry Debtors Domestic","Other"];
+(() => {
+  const nk = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const mapped = new Set(Object.values(PAIR_MAP).flat().map(nk));
+  PAIR_MAP["Other"] = LEGACY_SUBS.filter(s => !mapped.has(nk(s)));
+})();
+const SUBGROUPS = [...new Set(Object.values(PAIR_MAP).flat())];
+
 const STATES = ["Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Andaman and Nicobar Islands","Chandigarh","Dadra and Nagar Haveli and Daman and Diu","Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry"];
 const COUNTRIES = ["India","Bhutan","Nepal","Sri Lanka","Bangladesh"];
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const LS = { log:"pm_log_v1", pending:"pm_pending_v1", custom:"pm_custom_v2", last:"pm_last_v1", names:"pm_names_v1" };
+const LS = { log:"pm_log_v1", pending:"pm_pending_v1", custom:"pm_custom_v3", last:"pm_last_v1", names:"pm_names_v1" };
 const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e){ return d; } };
 const store = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
 const toast = m => { const t=$("#toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("show"),2600); };
 
+/* Current date & time in India (IST), taken fresh every time it is called */
 function nowIST(){
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).formatToParts(new Date()).map(x=>[x.type,x.value]));
   return { date:`${p.day}-${p.month}-${p.year}`, time:`${p.hour==="24"?"00":p.hour}:${p.minute}:${p.second}` };
 }
 const regOf = (pan,gst) => (pan || gst) ? "Register" : "Un-register";
 
-let custom = load(LS.custom, { groups:[], subGroups:[] });
+let custom = load(LS.custom, {});
+custom.groups = custom.groups || []; custom.subGroups = custom.subGroups || []; custom.pairs = custom.pairs || [];
 
-/* ---------- selects ---------- */
-function fillSelect(id, base, extra){
-  const sel = $(id), cur = sel.value;
+/* ---------- linked Group <-> Sub-Group ---------- */
+const lc = s => String(s ?? "").trim().toLowerCase();
+const allGroups = () => [...GROUPS, ...custom.groups.filter(x => !GROUPS.includes(x))];
+const allSubs   = () => [...SUBGROUPS, ...custom.subGroups.filter(x => !SUBGROUPS.includes(x))];
+function pairsList(){
+  const p = [];
+  for (const g in PAIR_MAP) PAIR_MAP[g].forEach(s => p.push([g, s]));
+  custom.pairs.forEach(x => p.push(x));
+  return p;
+}
+const subsFor = g => {
+  const r = pairsList().filter(p => lc(p[0]) === lc(g)).map(p => p[1]);
+  return r.length ? [...new Set(r)] : allSubs();           // unknown / brand-new group -> show everything
+};
+const groupsFor = s => {
+  const r = pairsList().filter(p => lc(p[1]) === lc(s)).map(p => p[0]);
+  return r.length ? [...new Set(r)] : allGroups();          // unknown / brand-new sub-group -> show everything
+};
+const knownGroup = g => pairsList().some(p => lc(p[0]) === lc(g));
+const knownSub   = s => pairsList().some(p => lc(p[1]) === lc(s));
+const pairOk = (g, s) => !knownGroup(g) || !knownSub(s) || pairsList().some(p => lc(p[0]) === lc(g) && lc(p[1]) === lc(s));
+
+function fillSelect(id, list, cur, base){
+  const sel = $(id);
   sel.innerHTML = '<option value="">Select…</option>'
-    + base.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join("")
-    + extra.map(o => `<option value="${esc(o)}">★ ${esc(o)} (new)</option>`).join("")
+    + list.map(o => base.includes(o)
+        ? `<option value="${esc(o)}">${esc(o)}</option>`
+        : `<option value="${esc(o)}">★ ${esc(o)} (new)</option>`).join("")
     + '<option value="__new__">+ Add new…</option>';
   sel.value = cur;
+  if (sel.value !== cur) sel.value = "";
 }
-function refreshSelects(){ fillSelect("#group", GROUPS, custom.groups); fillSelect("#subGroup", SUBGROUPS, custom.subGroups); }
-function bindNew(selId, wrapId, inpId){
-  $(selId).addEventListener("change", () => {
-    const on = $(selId).value === "__new__";
-    $(wrapId).hidden = !on; $(inpId).required = on;
-    if (on) $(inpId).focus();
+function renderSelects(){
+  const gv = $("#group").value, sv = $("#subGroup").value;
+  const real = v => v && v !== "__new__";
+  const gl = real(sv) ? groupsFor(sv) : allGroups();
+  const sl = real(gv) ? subsFor(gv)   : allSubs();
+  fillSelect("#group", gl, gv, GROUPS);
+  fillSelect("#subGroup", sl, sv, SUBGROUPS);
+  $("#groupHint").textContent = real(sv) ? `Showing ${gl.length} group${gl.length===1?"":"s"} for this sub-group` : "";
+  $("#subHint").textContent   = real(gv) ? `Showing ${sl.length} sub-group${sl.length===1?"":"s"} for this group` : "";
+  $("#groupHint").classList.toggle("on", real(sv));
+  $("#subHint").classList.toggle("on", real(gv));
+}
+function onPick(which){
+  const real = v => v && v !== "__new__";
+  renderSelects();
+  // only one possible match -> fill the other field automatically
+  if (which === "group" && real($("#group").value) && !$("#subGroup").value) {
+    const l = subsFor($("#group").value);
+    if (l.length === 1) { $("#subGroup").value = l[0]; renderSelects(); }
+  }
+  if (which === "sub" && real($("#subGroup").value) && !$("#group").value) {
+    const l = groupsFor($("#subGroup").value);
+    if (l.length === 1) { $("#group").value = l[0]; renderSelects(); }
+  }
+  syncNew();
+}
+function syncNew(){
+  [["#group","#groupNewWrap","#groupNew"],["#subGroup","#subNewWrap","#subNew"]].forEach(([s,w,i]) => {
+    const on = $(s).value === "__new__";
+    $(w).hidden = !on; $(i).required = on;
   });
 }
+$("#group").addEventListener("change", () => { onPick("group"); if ($("#group").value === "__new__") $("#groupNew").focus(); });
+$("#subGroup").addEventListener("change", () => { onPick("sub"); if ($("#subGroup").value === "__new__") $("#subNew").focus(); });
+
 const canon = (name, list) => list.find(x => x.toLowerCase() === name.toLowerCase()) || name;
 const pick = (selId, inpId, list) => {
   const v = $(selId).value;
@@ -367,9 +436,7 @@ const pick = (selId, inpId, list) => {
 
 $("#stateList").innerHTML = STATES.map(s => `<option value="${esc(s)}">`).join("");
 $("#countryList").innerHTML = COUNTRIES.map(s => `<option value="${esc(s)}">`).join("");
-refreshSelects();
-bindNew("#group","#groupNewWrap","#groupNew");
-bindNew("#subGroup","#subNewWrap","#subNew");
+renderSelects();
 
 /* ---------- live strip ---------- */
 function tick(){ const t = nowIST(); $("#cDate").textContent = t.date; $("#cTime").textContent = t.time; }
@@ -394,6 +461,7 @@ function validate(r){
   if (!r.partyName) e.push("Party Name is required");
   if (!r.group) e.push("Group is required");
   if (!r.subGroup) e.push("Sub-Group is required");
+  if (r.group && r.subGroup && !pairOk(r.group, r.subGroup)) e.push(`Sub-Group "${r.subGroup}" does not belong to Group "${r.group}"`);
   if (r.pan && !RX.pan.test(r.pan)) e.push("PAN format is invalid (e.g. ABCDE1234F)");
   if (r.gstin && !RX.gstin.test(r.gstin)) e.push("GSTIN format is invalid (15 characters)");
   if (r.mailId && !RX.mail.test(r.mailId)) e.push("Mail-ID is invalid");
@@ -403,15 +471,22 @@ function validate(r){
   if (r.creditLimit !== "" && !(Number(r.creditLimit) >= 0)) e.push("Credit Limit must be a number");
   return e;
 }
+/* Every row gets the date & time of the moment it is added.
+   Sent under several names (addDate/date, addTime/time, timestamp) so the sheet
+   script finds them whatever the column is called. */
 function buildRow(r, stamp){
   const t = stamp || nowIST();
-  return { addDate:t.date, addTime:t.time, ...r, regStatus:regOf(r.pan, r.gstin) };
+  return {
+    addDate:t.date, addTime:t.time,
+    date:t.date, time:t.time, timestamp:`${t.date} ${t.time}`,
+    ...r, regStatus:regOf(r.pan, r.gstin)
+  };
 }
 
 /* ---------- sending / logging ---------- */
 /* Text goes to the sheet as "Title Case" (first letter capital, rest small).
    PAN / GSTIN stay ALL CAPS, Mail-ID is lowercase, Group / Sub-Group / date / time / status stay as selected. */
-const KEEP_CASE = ["addDate","addTime","regStatus","group","subGroup"];
+const KEEP_CASE = ["addDate","addTime","date","time","timestamp","regStatus","group","subGroup"];
 const titleCase = s => s.toLowerCase().replace(/(^|[\s\-\/(.,&_])([a-z])/g, (m, a, b) => a + b.toUpperCase());
 const fmtVal = (k, v) => {
   v = String(v ?? "");
@@ -438,8 +513,10 @@ function record(rows, kind){
     log.push({ g:r.group, r:r.regStatus, d:r.addDate });
     if (!GROUPS.includes(r.group) && !custom.groups.includes(r.group)) { custom.groups.push(r.group); newG = r.group; }
     if (!SUBGROUPS.includes(r.subGroup) && !custom.subGroups.includes(r.subGroup)) { custom.subGroups.push(r.subGroup); newS = r.subGroup; }
+    // remember a new Group <-> Sub-Group combination so the filters know about it next time
+    if (!pairsList().some(p => lc(p[0]) === lc(r.group) && lc(p[1]) === lc(r.subGroup))) custom.pairs.push([r.group, r.subGroup]);
   });
-  store(LS.log, log); store(LS.custom, custom); refreshSelects();
+  store(LS.log, log); store(LS.custom, custom); renderSelects();
   const names = load(LS.names, []); rows.forEach(r => names.push(normName(r.partyName))); store(LS.names, names);
   const t = nowIST(), f = rows[0];
   store(LS.last, { kind, count:rows.length, p:f.partyName, g:f.group, s:f.subGroup, r:f.regStatus, c:f.comment, when:`${t.date} ${t.time}`, ts:Date.now(), newG, newS });
@@ -543,8 +620,8 @@ function collect(){
   const v = id => $(id).value.trim();
   return {
     partyName:v("#partyName"),
-    group:pick("#group","#groupNew",[...GROUPS,...custom.groups]),
-    subGroup:pick("#subGroup","#subNew",[...SUBGROUPS,...custom.subGroups]),
+    group:pick("#group","#groupNew",allGroups()),
+    subGroup:pick("#subGroup","#subNew",allSubs()),
     creditPeriod:v("#creditPeriod"), creditLimit:v("#creditLimit"),
     address:v("#address"), state:v("#state"), country:v("#country"),
     mainContact:v("#mainContact"), altContact:v("#altContact"), mailId:v("#mailId"),
@@ -563,7 +640,7 @@ $("#form").addEventListener("submit", async e => {
     btn.disabled = false; btn.textContent = "Add Entry"; return;
   }
   btn.textContent = "Adding…";
-  const row = buildRow(r), res = await send([row]);
+  const row = buildRow(r), res = await send([row]);   // date & time are stamped here, at the moment of adding
   btn.disabled = false; btn.textContent = "Add Entry";
   if (res.ok) {
     record([row], "entry");
@@ -578,6 +655,7 @@ $("#form").addEventListener("reset", () => setTimeout(() => {
   $("#groupNewWrap").hidden = true; $("#subNewWrap").hidden = true;
   $("#groupNew").required = false; $("#subNew").required = false;
   $("#country").value = "India"; $("#formErr").hidden = true; updReg();
+  renderSelects();            // bring back the full Group / Sub-Group lists
 }, 0));
 
 $("#retryBtn").onclick = async () => {
@@ -595,10 +673,9 @@ $("#tplBtn").onclick = () => {
   const ws = XLSX.utils.aoa_to_sheet([HEADERS]);
   ws["!cols"] = HEADERS.map(h => ({ wch:Math.max(16, h.length + 4) }));
   XLSX.utils.book_append_sheet(wb, ws, "Party Entry");
-  const g = [...GROUPS, ...custom.groups], s = [...SUBGROUPS, ...custom.subGroups];
-  const opt = [["Group","Sub-Group"]];
-  for (let i = 0; i < Math.max(g.length, s.length); i++) opt.push([g[i] || "", s[i] || ""]);
-  const wo = XLSX.utils.aoa_to_sheet(opt); wo["!cols"] = [{ wch:44 },{ wch:28 }];
+  // Options sheet lists every valid Group / Sub-Group combination
+  const opt = [["Group","Sub-Group"], ...pairsList()];
+  const wo = XLSX.utils.aoa_to_sheet(opt); wo["!cols"] = [{ wch:30 },{ wch:44 }];
   XLSX.utils.book_append_sheet(wb, wo, "Options");
   XLSX.writeFile(wb, "Party_Entry_Template.xlsx");
 };
@@ -633,8 +710,8 @@ $("#importFile").onchange = async e => {
       }
       if (!any) return;
       r.pan = r.pan.replace(/\s/g,"").toUpperCase(); r.gstin = r.gstin.replace(/\s/g,"").toUpperCase();
-      r.group = canon(r.group, [...GROUPS, ...custom.groups]);
-      r.subGroup = canon(r.subGroup, [...SUBGROUPS, ...custom.subGroups]);
+      r.group = canon(r.group, allGroups());
+      r.subGroup = canon(r.subGroup, allSubs());
       const errs = validate(r);
       errs.length ? skipped.push({ row:i + 2, why:errs.join("; ") }) : valid.push({ ...r, _row:i + 2 });
     });
